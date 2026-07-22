@@ -7,6 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;1,9..144,500&family=Work+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <style>
   :root{
     --bg:#EFF1EC;
@@ -312,6 +313,33 @@
     border-top:1px solid var(--line);
     padding-top:16px;
   }
+
+  /* sesión / login */
+  .session-bar{
+    display:flex; align-items:center; justify-content:flex-end;
+    gap:8px; margin-bottom:18px;
+  }
+  .session-email{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:11px;
+    color:var(--ink-soft);
+  }
+  #emailInput{ margin-bottom:0; }
+  .login-status{
+    font-size:12.5px;
+    color:var(--sage-deep);
+    min-height:16px;
+    margin:0 0 10px;
+  }
+  .toast{
+    position:fixed; left:50%; bottom:24px; transform:translateX(-50%);
+    background:var(--sage-deep); color:#fff;
+    padding:12px 18px; border-radius:10px;
+    font-size:13px; max-width:88vw;
+    box-shadow:0 10px 24px -8px rgba(0,0,0,.3);
+    z-index:10;
+  }
+  .share-actions{ display:flex; gap:8px; margin-top:16px; flex-wrap:wrap; }
 </style>
 </head>
 <body>
@@ -396,9 +424,7 @@ const TOOLS = [
   {
     id:'stop',
     name:'Técnica STOP',
-    desc:'Registro rápido cada vez que la usas.
-    <p>Detenerse, respirar, observar y continuar conscientemente. Definición: estrategia de 
-autorregulación emocional y disminuir la ansiedad. </p>' ',
+    desc:'Registro rápido cada vez que la usas.',
     questions:[
       {id:'situacion', type:'textarea', label:'¿Qué situación gatilló que usaras STOP?'},
       {id:'ayudo', type:'chips', label:'¿Te ayudó a bajar la tensión?', options:['Sí','No']},
@@ -407,25 +433,65 @@ autorregulación emocional y disminuir la ansiedad. </p>' ',
   },
 ];
 
-let state = { view:'home', toolId:null, qIndex:0, answers:{}, counts:{} };
+// ── Configuración de Supabase ────────────────────────────────────────
+// Reemplaza estos dos valores con los de tu proyecto en supabase.com
+// (Project Settings → API → "Project URL" y "anon public" key).
+// La anon key es pública por diseño — la protección real la da RLS
+// (Row Level Security), configurada en el SQL que corres una sola vez.
+const SUPABASE_URL = 'https://zgzeowfiblicknhdusis.supabase.co';
+const SUPABASE_ANON_KEY = 'sb_publishable_gmT2OgscSggdgXG5hzm9hw_NySD7Ipf';
+
+const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+let state = { view:'loading', toolId:null, qIndex:0, answers:{}, counts:{}, session:null };
 
 function toolById(id){ return TOOLS.find(t=>t.id===id); }
 
-// Standalone storage: uses the browser's own localStorage, so this file
-// works as a normal static site (GitHub Pages, Vercel, etc.) with no
-// backend and no Claude runtime required. Data lives only on the device
-// and browser where it was entered.
+// Almacenamiento en la nube (Supabase): cada registro queda asociado al
+// usuario que inició sesión, protegido por Row Level Security — cada
+// quien solo puede leer y escribir sus propios registros.
 async function getEntries(toolId){
-  try{
-    const raw = localStorage.getItem('entries:'+toolId);
-    return raw ? JSON.parse(raw) : [];
-  }catch(e){ return []; }
+  const { data, error } = await supabase
+    .from('entries')
+    .select('id, fecha, answers')
+    .eq('tool_id', toolId)
+    .order('fecha', { ascending:true });
+  if(error){ console.error(error); return []; }
+  return data.map(row => ({ fecha:new Date(row.fecha).toLocaleString('es-CL'), ...row.answers }));
 }
-async function saveEntries(toolId, arr){
-  try{
-    localStorage.setItem('entries:'+toolId, JSON.stringify(arr));
-    return true;
-  }catch(e){ return false; }
+async function addEntry(toolId, answers){
+  const { data:{ user } } = await supabase.auth.getUser();
+  if(!user) return false;
+  const { error } = await supabase.from('entries').insert({
+    user_id: user.id,
+    tool_id: toolId,
+    fecha: new Date().toISOString(),
+    answers
+  });
+  if(error) console.error(error);
+  return !error;
+}
+async function getOrCreateShareLink(){
+  const { data:{ user } } = await supabase.auth.getUser();
+  if(!user) return null;
+  const { data:existing } = await supabase
+    .from('share_links').select('token')
+    .eq('user_id', user.id).eq('revoked', false)
+    .limit(1).maybeSingle();
+  if(existing?.token) return shareUrl(existing.token);
+  const { data:inserted, error } = await supabase
+    .from('share_links').insert({ user_id:user.id })
+    .select('token').single();
+  if(error){ console.error(error); return null; }
+  return shareUrl(inserted.token);
+}
+function shareUrl(token){
+  return `${window.location.origin}${window.location.pathname}?share=${token}`;
+}
+function showToast(msg){
+  const t = el(`<div class="toast">${msg}</div>`);
+  document.body.appendChild(t);
+  setTimeout(()=> t.remove(), 4200);
 }
 
 function escapeCsv(v){
@@ -458,20 +524,101 @@ function el(html){
 function render(){
   const app = document.getElementById('app');
   app.innerHTML = '';
-  if(state.view==='home') app.appendChild(renderHome());
+  if(state.view==='login') app.appendChild(renderLogin());
+  else if(state.view==='home') app.appendChild(renderHome());
   else if(state.view==='wizard') app.appendChild(renderWizard());
   else if(state.view==='history') app.appendChild(renderHistory());
   else if(state.view==='done') app.appendChild(renderDone());
 }
 
-function renderHome(){
+function renderLogin(){
   const wrap = el(`<div>
     <p class="eyebrow">Cuaderno de check-in</p>
-    <h1>Un paso a la vez,<br><em>a tu propio ritmo.</em></h1>
-    <p class="lede">Elige una herramienta, responde las preguntas de a una, y tus respuestas quedan guardadas aquí mismo — listas para exportar cuando quieras.</p>
-    <div class="grid" id="grid"></div>
-    <p class="privacy-note">Tus respuestas se guardan solo en este navegador y dispositivo (no se envían a ningún servidor). Si cambias de navegador o borras los datos del sitio, se pierden — por eso conviene exportar seguido con "Exportar a Excel (CSV)".</p>
+    <h1>Antes de empezar,<br><em>inicia sesión.</em></h1>
+    <p class="lede">Te enviamos un link mágico a tu correo — sin contraseñas. Así tus registros quedan en tu cuenta y puedes entrar desde el celular, el computador, o donde sea.</p>
+    <div class="qcard" style="max-width:420px">
+      <p class="login-status" id="loginStatus"></p>
+      <input type="text" id="emailInput" placeholder="tu@correo.cl" style="margin-bottom:14px">
+      <button class="btn" id="sendLinkBtn" style="width:100%">Enviarme el link</button>
+    </div>
   </div>`);
+  const statusEl = wrap.querySelector('#loginStatus');
+  const send = async ()=>{
+    const email = wrap.querySelector('#emailInput').value.trim();
+    if(!email){ statusEl.textContent = 'Escribe tu correo primero.'; return; }
+    statusEl.textContent = 'Enviando…';
+    const { error } = await supabase.auth.signInWithOtp({
+      email,
+      options:{ emailRedirectTo: window.location.origin + window.location.pathname }
+    });
+    statusEl.textContent = error ? 'Hubo un problema, intenta de nuevo.' : 'Listo — revisa tu correo y haz clic en el link para entrar.';
+  };
+  wrap.querySelector('#sendLinkBtn').onclick = send;
+  wrap.querySelector('#emailInput').addEventListener('keydown', e=>{ if(e.key==='Enter') send(); });
+  return wrap;
+}
+
+async function renderShared(token){
+  const wrap = el(`<div>
+    <p class="eyebrow">Vista compartida · solo lectura</p>
+    <h1>Registros de check-in</h1>
+    <p class="lede">Estás viendo registros compartidos contigo. Esta vista es de solo lectura — no puedes editar ni agregar respuestas aquí.</p>
+    <div id="sharedHost"><p class="empty">Cargando…</p></div>
+  </div>`);
+  const host = wrap.querySelector('#sharedHost');
+  const { data, error } = await supabase.rpc('get_shared_entries', { p_token: token });
+  if(error || !data){
+    host.innerHTML = '<div class="table-wrap"><p class="empty">Este link no es válido o fue revocado.</p></div>';
+    return wrap;
+  }
+  if(data.length===0){
+    host.innerHTML = '<div class="table-wrap"><p class="empty">Aún no hay registros para mostrar.</p></div>';
+    return wrap;
+  }
+  const byTool = {};
+  data.forEach(row=>{ (byTool[row.tool_id] = byTool[row.tool_id] || []).push(row); });
+  host.innerHTML = '';
+  Object.keys(byTool).forEach(toolId=>{
+    const tool = toolById(toolId);
+    const rows = byTool[toolId];
+    const cols = ['fecha', ...(tool ? tool.questions.map(q=>q.id) : Object.keys(rows[0].answers||{}))];
+    const labels = tool ? {fecha:'Fecha', ...Object.fromEntries(tool.questions.map(q=>[q.id,q.label]))} : {fecha:'Fecha'};
+    let html = `<h3 style="font-family:'Fraunces',serif;font-weight:500;margin:26px 0 10px">${tool ? tool.name : toolId}</h3><div class="table-wrap"><table><thead><tr>`;
+    cols.forEach(c=> html += `<th>${labels[c]||c}</th>`);
+    html += '</tr></thead><tbody>';
+    rows.slice().reverse().forEach(r=>{
+      const rec = { fecha:new Date(r.fecha).toLocaleString('es-CL'), ...r.answers };
+      html += '<tr>' + cols.map(c=>`<td>${rec[c]!==undefined?String(rec[c]):''}</td>`).join('') + '</tr>';
+    });
+    html += '</tbody></table></div>';
+    host.insertAdjacentHTML('beforeend', html);
+  });
+  return wrap;
+}
+
+function renderHome(){
+  const email = state.session?.user?.email || '';
+  const wrap = el(`<div>
+    <div class="session-bar">
+      <span class="session-email">${email}</span>
+      <button class="btn ghost small" id="shareBtn">Compartir con mi terapeuta</button>
+      <button class="btn ghost small" id="logoutBtn">Cerrar sesión</button>
+    </div>
+    <p class="eyebrow">Cuaderno de check-in</p>
+    <h1>Un paso a la vez,<br><em>a tu propio ritmo.</em></h1>
+    <p class="lede">Elige una herramienta, responde las preguntas de a una, y tus respuestas quedan guardadas en tu cuenta — accesibles desde cualquier dispositivo donde inicies sesión.</p>
+    <div class="grid" id="grid"></div>
+    <p class="privacy-note">Tus respuestas quedan guardadas en tu cuenta (no en este navegador), así que puedes entrar desde el celular o el computador y ver lo mismo. Solo tú puedes verlas y editarlas, a menos que generes un link de "solo lectura" para compartir con tu terapeuta.</p>
+  </div>`);
+  wrap.querySelector('#logoutBtn').onclick = async ()=>{ await supabase.auth.signOut(); };
+  wrap.querySelector('#shareBtn').onclick = async (e)=>{
+    e.target.disabled = true;
+    const url = await getOrCreateShareLink();
+    e.target.disabled = false;
+    if(!url){ showToast('No se pudo generar el link, intenta de nuevo.'); return; }
+    try{ await navigator.clipboard.writeText(url); showToast('Link copiado — compártelo con tu terapeuta: '+url); }
+    catch(e){ showToast('Tu link: '+url); }
+  };
   const grid = wrap.querySelector('#grid');
   TOOLS.forEach(tool=>{
     const card = el(`<div class="card">
@@ -604,10 +751,7 @@ function captureAnswer(q){
 
 async function advance(tool){
   if(state.qIndex === tool.questions.length-1){
-    const record = { fecha: new Date().toLocaleString('es-CL'), ...state.answers };
-    const entries = await getEntries(tool.id);
-    entries.push(record);
-    await saveEntries(tool.id, entries);
+    await addEntry(tool.id, state.answers);
     state.view='done';
     render();
   } else {
@@ -680,7 +824,26 @@ function renderHistory(){
   return wrap;
 }
 
-render();
+async function boot(){
+  const params = new URLSearchParams(window.location.search);
+  const shareToken = params.get('share');
+  if(shareToken){
+    const app = document.getElementById('app');
+    app.innerHTML = '';
+    app.appendChild(await renderShared(shareToken));
+    return;
+  }
+  supabase.auth.onAuthStateChange((_event, session)=>{
+    state.session = session;
+    state.view = session ? 'home' : 'login';
+    render();
+  });
+  const { data:{ session } } = await supabase.auth.getSession();
+  state.session = session;
+  state.view = session ? 'home' : 'login';
+  render();
+}
+boot();
 </script>
 </body>
 </html>
