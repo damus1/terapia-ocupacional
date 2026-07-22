@@ -1,0 +1,684 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Check-in · Terapia Ocupacional</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;1,9..144,500&family=Work+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#EFF1EC;
+    --surface:#FFFFFF;
+    --ink:#263029;
+    --ink-soft:#5C6B62;
+    --sage:#5B7F73;
+    --sage-deep:#3F5C52;
+    --sage-pale:#E3E9E4;
+    --clay:#B98B4E;
+    --clay-pale:#F3E7D4;
+    --rose:#C97B6B;
+    --line:#DCE0D8;
+    --radius:14px;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--bg);
+    color:var(--ink);
+    font-family:'Work Sans', sans-serif;
+    min-height:100vh;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{
+    max-width:760px;
+    margin:0 auto;
+    padding:40px 24px 80px;
+  }
+  .eyebrow{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:12px;
+    letter-spacing:0.12em;
+    text-transform:uppercase;
+    color:var(--sage-deep);
+    margin:0 0 10px;
+  }
+  h1{
+    font-family:'Fraunces', serif;
+    font-weight:500;
+    font-size:clamp(28px,5vw,38px);
+    line-height:1.15;
+    margin:0 0 10px;
+    color:var(--ink);
+  }
+  h1 em{ font-style:italic; color:var(--sage-deep); }
+  .lede{
+    font-size:15px;
+    color:var(--ink-soft);
+    line-height:1.55;
+    max-width:52ch;
+    margin:0 0 36px;
+  }
+
+  /* breath thread — signature element, used as progress indicator */
+  .thread{
+    display:flex;
+    align-items:center;
+    gap:6px;
+    margin-bottom:30px;
+  }
+  .thread .seg{
+    flex:1;
+    height:3px;
+    border-radius:2px;
+    background:var(--line);
+    position:relative;
+    overflow:hidden;
+  }
+  .thread .seg.done{ background:var(--sage); }
+  .thread .seg.active::after{
+    content:'';
+    position:absolute; inset:0;
+    background:var(--sage);
+    animation:breathe 1.8s ease-in-out infinite;
+  }
+  @keyframes breathe{
+    0%,100%{ opacity:.35; }
+    50%{ opacity:1; }
+  }
+  @media (prefers-reduced-motion: reduce){
+    .thread .seg.active::after{ animation:none; opacity:1; }
+  }
+
+  /* home grid */
+  .grid{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:14px;
+  }
+  @media (max-width:560px){ .grid{ grid-template-columns:1fr; } }
+
+  .card{
+    background:var(--surface);
+    border:1px solid var(--line);
+    border-radius:var(--radius);
+    padding:20px;
+    display:flex;
+    flex-direction:column;
+    gap:10px;
+    transition:transform .18s ease, box-shadow .18s ease;
+  }
+  .card:hover{
+    transform:translateY(-2px);
+    box-shadow:0 10px 24px -12px rgba(38,48,41,0.18);
+  }
+  .card .dot{
+    width:9px; height:9px; border-radius:50%;
+    background:var(--sage);
+    margin-bottom:2px;
+  }
+  .card h3{
+    font-family:'Fraunces', serif;
+    font-weight:500;
+    font-size:18px;
+    margin:0;
+    color:var(--ink);
+  }
+  .card p{
+    font-size:13px;
+    color:var(--ink-soft);
+    line-height:1.45;
+    margin:0;
+    flex:1;
+  }
+  .card .meta{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:11px;
+    color:var(--sage-deep);
+    letter-spacing:0.02em;
+  }
+  .card-actions{
+    display:flex;
+    gap:8px;
+    margin-top:4px;
+  }
+
+  button{ font-family:inherit; cursor:pointer; border:none; }
+  .btn{
+    font-size:13px;
+    font-weight:500;
+    padding:9px 14px;
+    border-radius:9px;
+    background:var(--sage);
+    color:#fff;
+    transition:background .15s ease, opacity .15s ease;
+  }
+  .btn:hover{ background:var(--sage-deep); }
+  .btn.ghost{
+    background:transparent;
+    color:var(--sage-deep);
+    border:1px solid var(--line);
+  }
+  .btn.ghost:hover{ background:var(--sage-pale); }
+  .btn.small{ padding:7px 11px; font-size:12px; }
+  .btn:disabled{ opacity:.4; cursor:not-allowed; }
+  .btn:focus-visible, input:focus-visible, .chip:focus-visible{
+    outline:2px solid var(--sage-deep);
+    outline-offset:2px;
+  }
+
+  .topbar{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    margin-bottom:22px;
+  }
+  .back{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:12px;
+    color:var(--ink-soft);
+    background:none;
+    display:flex; align-items:center; gap:6px;
+  }
+  .back:hover{ color:var(--ink); }
+
+  /* wizard */
+  .qcard{
+    background:var(--surface);
+    border:1px solid var(--line);
+    border-radius:var(--radius);
+    padding:32px 28px;
+  }
+  .qnum{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:12px;
+    color:var(--sage-deep);
+    margin-bottom:8px;
+  }
+  .qlabel{
+    font-family:'Fraunces', serif;
+    font-weight:500;
+    font-size:22px;
+    line-height:1.3;
+    margin:0 0 22px;
+  }
+  .qhint{
+    font-size:12.5px;
+    color:var(--ink-soft);
+    margin:-14px 0 20px;
+  }
+  input[type=text], input[type=time], textarea{
+    width:100%;
+    font-family:inherit;
+    font-size:15px;
+    padding:12px 14px;
+    border:1px solid var(--line);
+    border-radius:9px;
+    background:#FBFBF9;
+    color:var(--ink);
+  }
+  textarea{ min-height:90px; resize:vertical; }
+  input[type=text]:focus, input[type=time]:focus, textarea:focus{
+    outline:none; border-color:var(--sage);
+    background:#fff;
+  }
+  .chips{ display:flex; flex-wrap:wrap; gap:8px; }
+  .chip{
+    padding:10px 16px;
+    border-radius:999px;
+    border:1px solid var(--line);
+    background:#FBFBF9;
+    font-size:14px;
+    color:var(--ink);
+    transition:all .15s ease;
+  }
+  .chip:hover{ border-color:var(--sage); }
+  .chip.sel{
+    background:var(--sage);
+    border-color:var(--sage);
+    color:#fff;
+  }
+  .slider-wrap{ padding:6px 4px 0; }
+  input[type=range]{
+    width:100%;
+    accent-color:var(--sage);
+    height:4px;
+  }
+  .slider-val{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:28px;
+    color:var(--sage-deep);
+    text-align:center;
+    margin:10px 0 6px;
+  }
+  .slider-labels{
+    display:flex; justify-content:space-between;
+    font-size:11px; color:var(--ink-soft);
+    font-family:'IBM Plex Mono', monospace;
+  }
+  .qactions{
+    display:flex;
+    justify-content:space-between;
+    margin-top:26px;
+  }
+  .qactions .right{ display:flex; gap:8px; }
+
+  .done-screen{ text-align:center; padding:50px 20px; }
+  .done-screen .mark{
+    width:52px; height:52px; border-radius:50%;
+    background:var(--sage-pale); color:var(--sage-deep);
+    display:flex; align-items:center; justify-content:center;
+    margin:0 auto 18px; font-size:24px;
+  }
+
+  /* history */
+  table{ width:100%; border-collapse:collapse; font-size:13px; }
+  th, td{
+    text-align:left;
+    padding:10px 12px;
+    border-bottom:1px solid var(--line);
+    vertical-align:top;
+  }
+  th{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:11px;
+    text-transform:uppercase;
+    letter-spacing:.04em;
+    color:var(--sage-deep);
+    background:var(--sage-pale);
+  }
+  .table-wrap{
+    overflow-x:auto;
+    border:1px solid var(--line);
+    border-radius:var(--radius);
+    background:var(--surface);
+  }
+  .empty{
+    text-align:center;
+    padding:50px 20px;
+    color:var(--ink-soft);
+    font-size:14px;
+  }
+  .history-actions{
+    display:flex; justify-content:space-between; align-items:center;
+    margin-bottom:16px; gap:10px; flex-wrap:wrap;
+  }
+  .privacy-note{
+    font-size:11.5px;
+    color:var(--ink-soft);
+    margin-top:28px;
+    line-height:1.5;
+    border-top:1px solid var(--line);
+    padding-top:16px;
+  }
+</style>
+</head>
+<body>
+<div class="wrap" id="app"></div>
+
+<script>
+const TOOLS = [
+  {
+    id:'registro_diario',
+    name:'Registro Diario',
+    desc:'Horarios clave del día para ver tus patrones.',
+    questions:[
+      {id:'despertar', type:'time', label:'¿A qué hora despertaste?'},
+      {id:'inicio_trabajo', type:'time', label:'¿A qué hora comenzaste a trabajar?'},
+      {id:'desayuno', type:'text', label:'¿Qué desayunaste y a qué hora?', hint:'Ej: 07:45, café con leche'},
+      {id:'higiene', type:'time', label:'¿A qué hora hiciste tu higiene matinal?'},
+      {id:'almuerzo_cena', type:'text', label:'Horario de almuerzo y cena', hint:'Ej: 13:30 / 20:00'},
+      {id:'estudio', type:'text', label:'¿Dedicaste tiempo a estudio hoy?', hint:'Horario, si aplica'},
+      {id:'fin_jornada', type:'time', label:'¿A qué hora terminaste tu jornada?'},
+      {id:'dormir', type:'time', label:'¿A qué hora te acostaste a dormir?'},
+      {id:'notas', type:'textarea', label:'¿Algo más que quieras anotar del día?', optional:true},
+    ]
+  },
+  {
+    id:'prioridades',
+    name:'Prioridades 3-2-1',
+    desc:'3 tareas imprescindibles, 2 importantes, 1 opcional.',
+    questions:[
+      {id:'imprescindible1', type:'text', label:'Tarea imprescindible 1'},
+      {id:'imprescindible2', type:'text', label:'Tarea imprescindible 2'},
+      {id:'imprescindible3', type:'text', label:'Tarea imprescindible 3'},
+      {id:'importante1', type:'text', label:'Tarea importante 1'},
+      {id:'importante2', type:'text', label:'Tarea importante 2'},
+      {id:'opcional', type:'text', label:'Tarea opcional'},
+      {id:'completadas', type:'chips', label:'Al cierre del día, ¿cuántas completaste?', options:['0','1','2','3','4','5','6']},
+    ]
+  },
+  {
+    id:'energia',
+    name:'Registro de Energía',
+    desc:'Energía, ánimo y ansiedad — 3 veces al día.',
+    questions:[
+      {id:'momento', type:'chips', label:'¿En qué momento del día estás?', options:['Mañana','Tarde','Noche']},
+      {id:'energia', type:'slider', label:'Tu nivel de energía ahora', min:0, max:10},
+      {id:'animo', type:'slider', label:'Tu ánimo ahora', min:0, max:10},
+      {id:'ansiedad', type:'slider', label:'Tu ansiedad ahora', min:0, max:10},
+      {id:'notas', type:'textarea', label:'¿Algo que quieras anotar?', optional:true},
+    ]
+  },
+  {
+    id:'rutina_matinal',
+    name:'Rutina Matinal',
+    desc:'Checklist mínimo: levantarse, higiene, ducha, desayuno.',
+    questions:[
+      {id:'levantarse', type:'chips', label:'¿Te levantaste hoy a la hora planificada?', options:['Sí','No']},
+      {id:'higiene', type:'chips', label:'¿Hiciste tu higiene matinal?', options:['Sí','No']},
+      {id:'ducha', type:'chips', label:'¿Te duchaste?', options:['Sí','No']},
+      {id:'desayuno', type:'chips', label:'¿Desayunaste?', options:['Sí','No']},
+    ]
+  },
+  {
+    id:'autoexigencia',
+    name:'Diario de Autoexigencia',
+    desc:'Tres preguntas guía para revisar patrones de exigencia.',
+    questions:[
+      {id:'que_exigi', type:'textarea', label:'¿Qué me exigí hoy?'},
+      {id:'era_necesario', type:'chips', label:'¿Era necesario?', options:['Sí','No','En parte']},
+      {id:'evidencia', type:'textarea', label:'¿Qué evidencia tengo de eso?'},
+    ]
+  },
+  {
+    id:'actividad_significativa',
+    name:'Actividad Significativa',
+    desc:'Una actividad placentera realizada hoy.',
+    questions:[
+      {id:'actividad', type:'text', label:'¿Qué actividad placentera hiciste hoy?', hint:'Ej: cocinar, leer, escuchar música'},
+      {id:'sentir_antes', type:'text', label:'¿Cómo te sentías antes de hacerla?'},
+      {id:'sentir_despues', type:'text', label:'¿Cómo te sentiste después?'},
+      {id:'repetir', type:'chips', label:'¿La repetirías?', options:['Sí','No']},
+    ]
+  },
+  {
+    id:'stop',
+    name:'Técnica STOP',
+    desc:'Registro rápido cada vez que la usas.',
+    questions:[
+      {id:'situacion', type:'textarea', label:'¿Qué situación gatilló que usaras STOP?'},
+      {id:'ayudo', type:'chips', label:'¿Te ayudó a bajar la tensión?', options:['Sí','No']},
+      {id:'notas', type:'textarea', label:'Notas adicionales', optional:true},
+    ]
+  },
+];
+
+let state = { view:'home', toolId:null, qIndex:0, answers:{}, counts:{} };
+
+function toolById(id){ return TOOLS.find(t=>t.id===id); }
+
+// Standalone storage: uses the browser's own localStorage, so this file
+// works as a normal static site (GitHub Pages, Vercel, etc.) with no
+// backend and no Claude runtime required. Data lives only on the device
+// and browser where it was entered.
+async function getEntries(toolId){
+  try{
+    const raw = localStorage.getItem('entries:'+toolId);
+    return raw ? JSON.parse(raw) : [];
+  }catch(e){ return []; }
+}
+async function saveEntries(toolId, arr){
+  try{
+    localStorage.setItem('entries:'+toolId, JSON.stringify(arr));
+    return true;
+  }catch(e){ return false; }
+}
+
+function escapeCsv(v){
+  if(v===undefined || v===null) return '';
+  const s = String(v).replace(/"/g,'""');
+  return /[",\n]/.test(s) ? `"${s}"` : s;
+}
+function exportCsv(tool, entries){
+  const cols = ['fecha', ...tool.questions.map(q=>q.id)];
+  const header = cols.map(escapeCsv).join(',');
+  const rows = entries.map(e => cols.map(c=>escapeCsv(e[c])).join(','));
+  const csv = [header, ...rows].join('\n');
+  const blob = new Blob(['\uFEFF'+csv], {type:'text/csv;charset=utf-8;'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `${tool.id}_registros.csv`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+function el(html){
+  const t = document.createElement('template');
+  t.innerHTML = html.trim();
+  return t.content.firstChild;
+}
+
+function render(){
+  const app = document.getElementById('app');
+  app.innerHTML = '';
+  if(state.view==='home') app.appendChild(renderHome());
+  else if(state.view==='wizard') app.appendChild(renderWizard());
+  else if(state.view==='history') app.appendChild(renderHistory());
+  else if(state.view==='done') app.appendChild(renderDone());
+}
+
+function renderHome(){
+  const wrap = el(`<div>
+    <p class="eyebrow">Cuaderno de check-in</p>
+    <h1>Un paso a la vez,<br><em>a tu propio ritmo.</em></h1>
+    <p class="lede">Elige una herramienta, responde las preguntas de a una, y tus respuestas quedan guardadas aquí mismo — listas para exportar cuando quieras.</p>
+    <div class="grid" id="grid"></div>
+    <p class="privacy-note">Tus respuestas se guardan solo en este navegador y dispositivo (no se envían a ningún servidor). Si cambias de navegador o borras los datos del sitio, se pierden — por eso conviene exportar seguido con "Exportar a Excel (CSV)".</p>
+  </div>`);
+  const grid = wrap.querySelector('#grid');
+  TOOLS.forEach(tool=>{
+    const card = el(`<div class="card">
+      <span class="dot"></span>
+      <h3>${tool.name}</h3>
+      <p>${tool.desc}</p>
+      <span class="meta" data-count="${tool.id}">cargando…</span>
+      <div class="card-actions">
+        <button class="btn small" data-start="${tool.id}">Responder</button>
+        <button class="btn small ghost" data-history="${tool.id}">Ver registros</button>
+      </div>
+    </div>`);
+    card.querySelector('[data-start]').onclick = ()=> startWizard(tool.id);
+    card.querySelector('[data-history]').onclick = ()=> openHistory(tool.id);
+    grid.appendChild(card);
+  });
+  TOOLS.forEach(async tool=>{
+    const entries = await getEntries(tool.id);
+    const badge = wrap.querySelector(`[data-count="${tool.id}"]`);
+    if(badge) badge.textContent = entries.length===0 ? 'sin registros aún' : `${entries.length} registro${entries.length===1?'':'s'}`;
+  });
+  return wrap;
+}
+
+function startWizard(toolId){
+  state.view='wizard'; state.toolId=toolId; state.qIndex=0; state.answers={};
+  render();
+}
+
+function threadHtml(tool){
+  return `<div class="thread">${tool.questions.map((_,i)=>{
+    const cls = i < state.qIndex ? 'done' : (i===state.qIndex ? 'active' : '');
+    return `<div class="seg ${cls}"></div>`;
+  }).join('')}</div>`;
+}
+
+function renderWizard(){
+  const tool = toolById(state.toolId);
+  const q = tool.questions[state.qIndex];
+  const wrap = el(`<div>
+    <div class="topbar">
+      <button class="back" data-home>&larr; volver</button>
+      <span class="eyebrow" style="margin:0">${tool.name}</span>
+    </div>
+    ${threadHtml(tool)}
+    <div class="qcard">
+      <p class="qnum">Pregunta ${state.qIndex+1} de ${tool.questions.length}</p>
+      <p class="qlabel">${q.label}</p>
+      ${q.hint ? `<p class="qhint">${q.hint}</p>` : ''}
+      <div id="qfield"></div>
+      <div class="qactions">
+        <button class="btn ghost" id="prevBtn" ${state.qIndex===0?'disabled':''}>Atrás</button>
+        <div class="right">
+          ${q.optional ? `<button class="btn ghost" id="skipBtn">Omitir</button>` : ''}
+          <button class="btn" id="nextBtn">${state.qIndex===tool.questions.length-1 ? 'Guardar' : 'Siguiente'}</button>
+        </div>
+      </div>
+    </div>
+  </div>`);
+
+  wrap.querySelector('[data-home]').onclick = ()=>{ state.view='home'; render(); };
+  const field = wrap.querySelector('#qfield');
+  const current = state.answers[q.id];
+
+  if(q.type==='text'){
+    field.appendChild(el(`<input type="text" id="input" value="${current?String(current).replace(/"/g,'&quot;'):''}" placeholder="Escribe aquí…">`));
+  } else if(q.type==='time'){
+    field.appendChild(el(`<input type="time" id="input" value="${current||''}">`));
+  } else if(q.type==='textarea'){
+    const ta = el(`<textarea id="input" placeholder="Escribe aquí…"></textarea>`);
+    ta.value = current || '';
+    field.appendChild(ta);
+  } else if(q.type==='chips'){
+    const chipsWrap = el(`<div class="chips"></div>`);
+    q.options.forEach(opt=>{
+      const chip = el(`<button type="button" class="chip ${current===opt?'sel':''}">${opt}</button>`);
+      chip.onclick = ()=>{
+        state.answers[q.id] = opt;
+        chipsWrap.querySelectorAll('.chip').forEach(c=>c.classList.remove('sel'));
+        chip.classList.add('sel');
+      };
+      chipsWrap.appendChild(chip);
+    });
+    field.appendChild(chipsWrap);
+  } else if(q.type==='slider'){
+    const val = current!==undefined ? current : Math.round((q.min+q.max)/2);
+    const sliderWrap = el(`<div class="slider-wrap">
+      <div class="slider-val" id="sliderVal">${val}</div>
+      <input type="range" id="input" min="${q.min}" max="${q.max}" value="${val}">
+      <div class="slider-labels"><span>${q.min} — nada</span><span>${q.max} — mucho</span></div>
+    </div>`);
+    sliderWrap.querySelector('#input').oninput = (e)=>{
+      sliderWrap.querySelector('#sliderVal').textContent = e.target.value;
+    };
+    field.appendChild(sliderWrap);
+    state.answers[q.id] = state.answers[q.id]!==undefined ? state.answers[q.id] : val;
+  }
+
+  wrap.querySelector('#prevBtn').onclick = ()=>{
+    captureAnswer(q);
+    state.qIndex = Math.max(0, state.qIndex-1);
+    render();
+  };
+  const skipBtn = wrap.querySelector('#skipBtn');
+  if(skipBtn) skipBtn.onclick = ()=>{
+    delete state.answers[q.id];
+    advance(tool);
+  };
+  wrap.querySelector('#nextBtn').onclick = ()=>{
+    captureAnswer(q);
+    if(!q.optional && q.type!=='slider' && (state.answers[q.id]===undefined || state.answers[q.id]==='')){
+      const input = wrap.querySelector('#input');
+      if(input) input.style.borderColor = 'var(--rose)';
+      return;
+    }
+    advance(tool);
+  };
+  return wrap;
+}
+
+function captureAnswer(q){
+  const input = document.getElementById('input');
+  if(!input) return;
+  if(q.type==='text' || q.type==='time' || q.type==='textarea'){
+    state.answers[q.id] = input.value;
+  } else if(q.type==='slider'){
+    state.answers[q.id] = Number(input.value);
+  }
+}
+
+async function advance(tool){
+  if(state.qIndex === tool.questions.length-1){
+    const record = { fecha: new Date().toLocaleString('es-CL'), ...state.answers };
+    const entries = await getEntries(tool.id);
+    entries.push(record);
+    await saveEntries(tool.id, entries);
+    state.view='done';
+    render();
+  } else {
+    state.qIndex++;
+    render();
+  }
+}
+
+function renderDone(){
+  const tool = toolById(state.toolId);
+  const wrap = el(`<div>
+    <div class="qcard done-screen">
+      <div class="mark">&#10003;</div>
+      <p class="qlabel" style="margin-bottom:8px">Registro guardado</p>
+      <p class="lede" style="margin:0 auto 26px">Tus respuestas de "${tool.name}" quedaron guardadas.</p>
+      <div class="card-actions" style="justify-content:center">
+        <button class="btn" id="toHome">Volver al inicio</button>
+        <button class="btn ghost" id="toHistory">Ver registros</button>
+      </div>
+    </div>
+  </div>`);
+  wrap.querySelector('#toHome').onclick = ()=>{ state.view='home'; render(); };
+  wrap.querySelector('#toHistory').onclick = ()=> openHistory(tool.id);
+  return wrap;
+}
+
+async function openHistory(toolId){
+  state.view='history'; state.toolId=toolId;
+  render();
+}
+
+function renderHistory(){
+  const tool = toolById(state.toolId);
+  const wrap = el(`<div>
+    <div class="topbar">
+      <button class="back" data-home>&larr; volver</button>
+      <span class="eyebrow" style="margin:0">${tool.name}</span>
+    </div>
+    <div class="history-actions">
+      <button class="btn" data-start="${tool.id}">+ Nuevo registro</button>
+      <button class="btn ghost" id="exportBtn">Exportar a Excel (CSV)</button>
+    </div>
+    <div id="tableHost"></div>
+  </div>`);
+  wrap.querySelector('[data-home]').onclick = ()=>{ state.view='home'; render(); };
+  wrap.querySelector('[data-start]').onclick = ()=> startWizard(tool.id);
+
+  const host = wrap.querySelector('#tableHost');
+  host.innerHTML = '<p class="empty">Cargando…</p>';
+
+  getEntries(tool.id).then(entries=>{
+    if(entries.length===0){
+      host.innerHTML = '<div class="table-wrap"><p class="empty">Aún no tienes registros aquí. Cuando respondas, aparecerán en esta tabla.</p></div>';
+      wrap.querySelector('#exportBtn').disabled = true;
+      return;
+    }
+    const cols = ['fecha', ...tool.questions.map(q=>q.id)];
+    const labels = {fecha:'Fecha', ...Object.fromEntries(tool.questions.map(q=>[q.id,q.label]))};
+    let html = '<div class="table-wrap"><table><thead><tr>';
+    cols.forEach(c=> html += `<th>${labels[c]}</th>`);
+    html += '</tr></thead><tbody>';
+    entries.slice().reverse().forEach(e=>{
+      html += '<tr>' + cols.map(c=>`<td>${e[c]!==undefined?String(e[c]):''}</td>`).join('') + '</tr>';
+    });
+    html += '</tbody></table></div>';
+    host.innerHTML = html;
+    wrap.querySelector('#exportBtn').onclick = ()=> exportCsv(tool, entries);
+  });
+
+  return wrap;
+}
+
+render();
+</script>
+</body>
+</html>
